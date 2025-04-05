@@ -2,13 +2,13 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChat } from "@/contexts/ChatContext";
 import { ChatProvider } from "@/contexts/ChatContext";
+import { useLocation } from "wouter";
 import Sidebar from "@/components/chat/Sidebar";
 import ChatArea from "@/components/chat/ChatArea";
 import { useMediaQuery } from "@/hooks/use-mobile";
-import { useLocation } from "wouter";
 
 const MainAppContent = () => {
-  const { isAuthenticated, currentUser } = useAuth();
+  const { currentUser } = useAuth();
   const { activeConversation } = useChat();
   const [showSidebar, setShowSidebar] = useState(true);
   const [showChat, setShowChat] = useState(false);
@@ -35,7 +35,8 @@ const MainAppContent = () => {
     setShowChat(false);
   };
 
-  if (!isAuthenticated || !currentUser) {
+  // User should always exist here due to the parent component check
+  if (!currentUser) {
     return null;
   }
 
@@ -60,18 +61,18 @@ const MainAppContent = () => {
 
 const MainApp = () => {
   const { isAuthenticated, currentUser } = useAuth();
-  const [_, setLocation] = useLocation();
+  const [_, navigate] = useLocation();
   
-  // Redirect to login if not authenticated
+  // Redirect to auth if not authenticated
   useEffect(() => {
-    if (!isAuthenticated || !currentUser) {
-      setLocation("/");
+    if (!isAuthenticated) {
+      navigate("/");
     }
-  }, [isAuthenticated, currentUser, setLocation]);
+  }, [isAuthenticated, navigate]);
   
-  // Only render the app when authenticated
+  // Don't render anything if not authenticated
   if (!isAuthenticated || !currentUser) {
-    return null;
+    return <div className="flex items-center justify-center h-screen text-gray-500">Loading...</div>;
   }
   
   return (
