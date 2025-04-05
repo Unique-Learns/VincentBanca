@@ -2,12 +2,14 @@ import express, { type Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
+import { db } from "./db";
 import { z } from "zod";
 import { 
   insertUserSchema, 
   insertContactSchema, 
   insertMessageSchema, 
-  insertConversationSchema
+  insertConversationSchema,
+  users
 } from "@shared/schema";
 
 // Type for connected clients
@@ -325,51 +327,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // If we're in development, create some demo users if they don't exist
-      // This helps demonstrate the contact syncing feature
+      // If no matches were found with the provided emails, find all registered users
+      // except the current user and add them as contacts
       if (foundContacts.length === 0) {
-        console.log('No existing contacts found, setting up demo accounts');
+        console.log('No matches found with provided emails, adding all available users');
         
-        const demoEmails = [
-          { email: 'demo1@example.com', username: 'Alex Demo', password: 'password123' },
-          { email: 'demo2@example.com', username: 'Taylor Demo', password: 'password123' },
-          { email: 'demo3@example.com', username: 'Jordan Demo', password: 'password123' }
-        ];
+        // Get all users from the database
+        const allUsers = await db.select().from(users);
         
-        for (const demoUser of demoEmails) {
-          // Check if user already exists
-          let user = await storage.getUserByEmail(demoUser.email);
-          
-          // Create user if doesn't exist
-          if (!user) {
-            user = await storage.createUser({
-              email: demoUser.email,
-              username: demoUser.username,
-              password: demoUser.password,
-              avatar: null,
-              status: "Hey, I'm using BancaMessenger!",
-              verified: true
-            });
+        // Get existing contacts for this user
+        const existingContacts = await storage.getContactsByUserId(userId);
+        
+        for (const user of allUsers) {
+          // Skip the current user
+          if (user.id === userId) {
+            continue;
           }
           
-          if (user && user.id !== userId) {
-            // Check if already a contact
-            const existingContacts = await storage.getContactsByUserId(userId);
-            const alreadyAdded = existingContacts.some(contact => contact.contactId === user.id);
+          // Check if this user is already a contact
+          const alreadyAdded = existingContacts.some(contact => contact.contactId === user.id);
+          
+          if (!alreadyAdded) {
+            // Add as a new contact
+            const newContact = await storage.createContact({
+              userId,
+              contactId: user.id,
+              contactName: user.username
+            });
             
-            if (!alreadyAdded) {
-              // Add as a new contact
-              const newContact = await storage.createContact({
-                userId,
-                contactId: user.id,
-                contactName: user.username
-              });
-              
-              foundContacts.push({
-                ...newContact,
-                contactUser: user
-              });
-            }
+            foundContacts.push({
+              ...newContact,
+              contactUser: user
+            });
           }
         }
       }
