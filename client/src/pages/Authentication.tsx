@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
-import PhoneForm from "@/components/auth/PhoneForm";
+import EmailForm from "@/components/auth/EmailForm";
 import VerificationForm from "@/components/auth/VerificationForm";
 import ProfileForm from "@/components/auth/ProfileForm";
 
@@ -31,7 +31,7 @@ const Authentication = () => {
         </div>
 
         {/* Auth Forms */}
-        {verificationStep === "phone" && <PhoneForm />}
+        {verificationStep === "email" && <EmailForm />}
         {verificationStep === "verify" && <VerificationForm />}
         {verificationStep === "profile" && <ProfileForm />}
       </div>

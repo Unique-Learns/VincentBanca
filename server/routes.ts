@@ -151,10 +151,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
   app.post('/api/auth/request-code', async (req: Request, res: Response) => {
     try {
-      const { phoneNumber } = req.body;
+      const { email } = req.body;
       
-      if (!phoneNumber) {
-        return res.status(400).json({ message: 'Phone number is required' });
+      if (!email) {
+        return res.status(400).json({ message: 'Email is required' });
+      }
+      
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: 'Invalid email format' });
       }
       
       // Generate a 6-digit verification code
@@ -166,12 +172,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Store the verification code
       await storage.createVerificationCode({
-        phoneNumber,
+        email,
         code,
         expiresAt
       });
       
-      // In a real app, you would send an SMS with the code
+      // In a real app, you would send an email with the code
       // For this MVP, we'll just return the code in the response
       return res.status(200).json({ 
         message: 'Verification code sent', 
@@ -185,22 +191,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post('/api/auth/verify-code', async (req: Request, res: Response) => {
     try {
-      const { phoneNumber, code } = req.body;
+      const { email, code } = req.body;
       
-      if (!phoneNumber || !code) {
-        return res.status(400).json({ message: 'Phone number and code are required' });
+      if (!email || !code) {
+        return res.status(400).json({ message: 'Email and code are required' });
       }
       
       // Get the stored verification code
-      const storedCode = await storage.getVerificationCode(phoneNumber);
+      const storedCode = await storage.getVerificationCode(email);
       
       if (!storedCode) {
-        return res.status(400).json({ message: 'No verification code found for this number' });
+        return res.status(400).json({ message: 'No verification code found for this email' });
       }
       
       // Check if the code has expired
       if (new Date() > storedCode.expiresAt) {
-        await storage.deleteVerificationCode(phoneNumber);
+        await storage.deleteVerificationCode(email);
         return res.status(400).json({ message: 'Verification code has expired' });
       }
       
@@ -210,7 +216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if user exists
-      let user = await storage.getUserByPhoneNumber(phoneNumber);
+      let user = await storage.getUserByEmail(email);
       
       if (!user) {
         // User doesn't exist yet, but verification is successful
@@ -224,7 +230,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       user = await storage.updateUser(user.id, { verified: true });
       
       // Delete the verification code
-      await storage.deleteVerificationCode(phoneNumber);
+      await storage.deleteVerificationCode(email);
       
       return res.status(200).json({ 
         message: 'Verification successful', 
@@ -240,17 +246,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/complete-profile', async (req: Request, res: Response) => {
     try {
       const userInsertSchema = insertUserSchema.extend({
-        phoneNumber: z.string().min(1, "Phone number is required"),
+        email: z.string().email("Valid email is required"),
+        password: z.string().min(8, "Password must be at least 8 characters"),
         username: z.string().min(1, "Username is required")
       });
       
       const validatedData = userInsertSchema.parse(req.body);
       
-      // Check if user with this phone number already exists
-      const existingUser = await storage.getUserByPhoneNumber(validatedData.phoneNumber);
+      // Check if user with this email already exists
+      const existingUser = await storage.getUserByEmail(validatedData.email);
       
       if (existingUser) {
-        return res.status(400).json({ message: 'User with this phone number already exists' });
+        return res.status(400).json({ message: 'User with this email already exists' });
       }
       
       // Create new user
@@ -319,20 +326,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Sync contacts from phone book (simulated)
+  // Sync contacts from email address book (simulated)
   app.post('/api/contacts/sync', async (req: Request, res: Response) => {
     try {
-      const { userId, phoneNumbers } = req.body;
+      const { userId, emails } = req.body;
       
-      if (!userId || !phoneNumbers || !Array.isArray(phoneNumbers)) {
-        return res.status(400).json({ message: 'User ID and phone numbers array are required' });
+      if (!userId || !emails || !Array.isArray(emails)) {
+        return res.status(400).json({ message: 'User ID and emails array are required' });
       }
       
-      // Find users with the provided phone numbers
+      // Validate email format for all emails
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      for (const email of emails) {
+        if (!emailRegex.test(email)) {
+          return res.status(400).json({ 
+            message: `Invalid email format: ${email}`,
+            validationError: true
+          });
+        }
+      }
+      
+      // Find users with the provided emails
       const foundContacts = [];
       
-      for (const phoneNumber of phoneNumbers) {
-        const user = await storage.getUserByPhoneNumber(phoneNumber);
+      for (const email of emails) {
+        const user = await storage.getUserByEmail(email);
         
         if (user && user.id !== userId) {
           // Check if this contact already exists for the user
@@ -407,6 +425,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Sort by last message time
       conversationsWithDetails.sort((a, b) => {
+        // Handle potentially null lastMessageTime values
+        if (!a.lastMessageTime) return 1;
+        if (!b.lastMessageTime) return -1;
         return new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime();
       });
       

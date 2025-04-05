@@ -21,7 +21,7 @@ interface ChatContextType {
   fetchContacts: () => Promise<void>;
   fetchConversations: () => Promise<void>;
   fetchMessages: (conversationId: number) => Promise<void>;
-  syncContacts: (phoneNumbers: string[]) => Promise<void>;
+  syncContacts: (emails: string[]) => Promise<void>;
   setActiveConversation: (conversation: ConversationWithDetails | null) => void;
   startConversation: (contactId: number) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
@@ -234,7 +234,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser, toast]);
 
-  const syncContacts = useCallback(async (phoneNumbers: string[]) => {
+  const syncContacts = useCallback(async (emails: string[]) => {
     if (!currentUser) return;
     
     try {
@@ -245,7 +245,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
         body: JSON.stringify({
           userId: currentUser.id,
-          phoneNumbers
+          emails
         })
       });
       

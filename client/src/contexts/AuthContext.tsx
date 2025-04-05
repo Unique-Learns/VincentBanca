@@ -5,17 +5,17 @@ import { useToast } from "@/hooks/use-toast";
 interface AuthContextType {
   isAuthenticated: boolean;
   currentUser: User | null;
-  verificationStep: "phone" | "verify" | "profile";
-  phoneNumber: string;
+  verificationStep: "email" | "verify" | "profile";
+  email: string;
   verificationCode: string;
   login: (user: User) => void;
   logout: () => void;
-  setPhoneNumber: (phone: string) => void;
+  setEmail: (email: string) => void;
   setVerificationCode: (code: string) => void;
-  setVerificationStep: (step: "phone" | "verify" | "profile") => void;
-  requestVerificationCode: (phoneNumber: string) => Promise<string>;
-  verifyCode: (phoneNumber: string, code: string) => Promise<{success: boolean, isNewUser: boolean, user?: User}>;
-  createProfile: (username: string) => Promise<User>;
+  setVerificationStep: (step: "email" | "verify" | "profile") => void;
+  requestVerificationCode: (email: string) => Promise<string>;
+  verifyCode: (email: string, code: string) => Promise<{success: boolean, isNewUser: boolean, user?: User}>;
+  createProfile: (username: string, password: string) => Promise<User>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,8 +23,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [verificationStep, setVerificationStep] = useState<"phone" | "verify" | "profile">("phone");
-  const [phoneNumber, setPhoneNumber] = useState<string>("");
+  const [verificationStep, setVerificationStep] = useState<"email" | "verify" | "profile">("email");
+  const [email, setEmail] = useState<string>("");
   const [verificationCode, setVerificationCode] = useState<string>("");
   const { toast } = useToast();
 
@@ -55,14 +55,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem("banca_user");
   };
 
-  const requestVerificationCode = async (phoneNumber: string): Promise<string> => {
+  const requestVerificationCode = async (email: string): Promise<string> => {
     try {
       const response = await fetch("/api/auth/request-code", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ phoneNumber }),
+        body: JSON.stringify({ email }),
       });
 
       const data = await response.json();
@@ -73,10 +73,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       toast({
         title: "Verification code sent",
-        description: "Please check your phone for the code",
+        description: "Please check your email for the code",
       });
 
-      return data.code; // In a real app, this would be sent via SMS
+      return data.code; // In a real app, this would be sent via email
     } catch (error) {
       console.error("Error requesting verification code:", error);
       toast({
@@ -88,14 +88,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const verifyCode = async (phoneNumber: string, code: string) => {
+  const verifyCode = async (email: string, code: string) => {
     try {
       const response = await fetch("/api/auth/verify-code", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ phoneNumber, code }),
+        body: JSON.stringify({ email, code }),
       });
 
       const data = await response.json();
@@ -128,7 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const createProfile = async (username: string): Promise<User> => {
+  const createProfile = async (username: string, password: string): Promise<User> => {
     try {
       const response = await fetch("/api/auth/complete-profile", {
         method: "POST",
@@ -136,7 +136,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          phoneNumber,
+          email,
+          password,
           username,
         }),
       });
@@ -171,11 +172,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated,
         currentUser,
         verificationStep,
-        phoneNumber,
+        email,
         verificationCode,
         login,
         logout,
-        setPhoneNumber,
+        setEmail,
         setVerificationCode,
         setVerificationStep,
         requestVerificationCode,

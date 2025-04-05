@@ -9,14 +9,14 @@ import {
 export interface IStorage {
   // User operations
   getUserById(id: number): Promise<User | undefined>;
-  getUserByPhoneNumber(phoneNumber: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined>;
   
   // Verification operations
-  getVerificationCode(phoneNumber: string): Promise<VerificationCode | undefined>;
+  getVerificationCode(email: string): Promise<VerificationCode | undefined>;
   createVerificationCode(code: InsertVerificationCode): Promise<VerificationCode>;
-  deleteVerificationCode(phoneNumber: string): Promise<boolean>;
+  deleteVerificationCode(email: string): Promise<boolean>;
   
   // Contacts operations
   getContactsByUserId(userId: number): Promise<Contact[]>;
@@ -28,7 +28,7 @@ export interface IStorage {
   getConversationByParticipants(userA: number, userB: number): Promise<Conversation | undefined>;
   getConversationsByUserId(userId: number): Promise<Conversation[]>;
   createConversation(conversation: InsertConversation): Promise<Conversation>;
-  updateConversationLastMessageTime(id: number, time: Date): Promise<Conversation | undefined>;
+  updateConversationLastMessageTime(id: number, time: Date | null): Promise<Conversation | undefined>;
   
   // Message operations
   getMessagesByConversationId(conversationId: number): Promise<Message[]>;
@@ -64,28 +64,32 @@ export class MemStorage implements IStorage {
     
     // Add some demo users
     this.createUser({
-      phoneNumber: "+14155552671",
+      email: "sara@example.com",
+      password: "password123", // In a real app, this would be hashed
       username: "Sara Wilson",
       avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330",
       status: "Hey there! I'm using BancaMessenger."
     });
     
     this.createUser({
-      phoneNumber: "+14155552672",
+      email: "alex@example.com",
+      password: "password123",
       username: "Alex Johnson",
       avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e",
       status: "Available"
     });
     
     this.createUser({
-      phoneNumber: "+14155552673",
+      email: "maya@example.com",
+      password: "password123",
       username: "Maya Patel",
       avatar: "https://images.unsplash.com/photo-1607746882042-944635dfe10e",
       status: "At work"
     });
     
     this.createUser({
-      phoneNumber: "+14155552674",
+      email: "david@example.com",
+      password: "password123",
       username: "David Kim",
       avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d",
       status: "In a meeting"
@@ -97,13 +101,21 @@ export class MemStorage implements IStorage {
     return this.users.get(id);
   }
 
-  async getUserByPhoneNumber(phoneNumber: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(user => user.phoneNumber === phoneNumber);
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(user => user.email === email);
   }
 
   async createUser(user: InsertUser): Promise<User> {
     const id = this.userId++;
-    const newUser: User = { ...user, id, createdAt: new Date() };
+    // Ensure optional fields have proper defaults to match User type
+    const newUser: User = { 
+      ...user, 
+      id, 
+      avatar: user.avatar ?? null,
+      status: user.status ?? "Hey, I'm using BancaMessenger!",
+      verified: user.verified ?? false,
+      createdAt: new Date() 
+    };
     this.users.set(id, newUser);
     return newUser;
   }
@@ -118,24 +130,24 @@ export class MemStorage implements IStorage {
   }
 
   // Verification code operations
-  async getVerificationCode(phoneNumber: string): Promise<VerificationCode | undefined> {
+  async getVerificationCode(email: string): Promise<VerificationCode | undefined> {
     return Array.from(this.verificationCodes.values()).find(
-      code => code.phoneNumber === phoneNumber
+      code => code.email === email
     );
   }
 
   async createVerificationCode(code: InsertVerificationCode): Promise<VerificationCode> {
-    // Delete any existing verification code for this phone number
-    await this.deleteVerificationCode(code.phoneNumber);
+    // Delete any existing verification code for this email
+    await this.deleteVerificationCode(code.email);
     
     const id = this.verificationId++;
     const newCode: VerificationCode = { ...code, id, createdAt: new Date() };
-    this.verificationCodes.set(code.phoneNumber, newCode);
+    this.verificationCodes.set(code.email, newCode);
     return newCode;
   }
 
-  async deleteVerificationCode(phoneNumber: string): Promise<boolean> {
-    return this.verificationCodes.delete(phoneNumber);
+  async deleteVerificationCode(email: string): Promise<boolean> {
+    return this.verificationCodes.delete(email);
   }
 
   // Contact operations
@@ -191,11 +203,14 @@ export class MemStorage implements IStorage {
     return newConversation;
   }
 
-  async updateConversationLastMessageTime(id: number, time: Date): Promise<Conversation | undefined> {
+  async updateConversationLastMessageTime(id: number, time: Date | null): Promise<Conversation | undefined> {
     const conversation = this.conversations.get(id);
     if (!conversation) return undefined;
     
-    const updatedConversation = { ...conversation, lastMessageTime: time };
+    // If time is null, use current date
+    const safeTime = time || new Date();
+    
+    const updatedConversation = { ...conversation, lastMessageTime: safeTime };
     this.conversations.set(id, updatedConversation);
     return updatedConversation;
   }
@@ -204,7 +219,12 @@ export class MemStorage implements IStorage {
   async getMessagesByConversationId(conversationId: number): Promise<Message[]> {
     return Array.from(this.messages.values())
       .filter(message => message.conversationId === conversationId)
-      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      .sort((a, b) => {
+        // Safely handle null timestamp values
+        if (!a.timestamp) return -1;
+        if (!b.timestamp) return 1;
+        return a.timestamp.getTime() - b.timestamp.getTime();
+      });
   }
 
   async createMessage(message: InsertMessage): Promise<Message> {
@@ -212,6 +232,7 @@ export class MemStorage implements IStorage {
     const newMessage: Message = { 
       ...message, 
       id, 
+      status: message.status || 'sent', // Ensure status is not undefined
       timestamp: new Date() 
     };
     this.messages.set(id, newMessage);

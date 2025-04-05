@@ -5,7 +5,8 @@ import { z } from "zod";
 // User model - for authentication and profile data
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  phoneNumber: text("phone_number").notNull().unique(),
+  email: text("email").notNull().unique(),
+  password: text("password").notNull(),
   username: text("username").notNull(),
   avatar: text("avatar"),
   status: text("status").default("Hey, I'm using BancaMessenger!"),
@@ -14,7 +15,8 @@ export const users = pgTable("users", {
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
-  phoneNumber: true,
+  email: true,
+  password: true,
   username: true,
   avatar: true,
   status: true,
@@ -82,14 +84,14 @@ export type Message = typeof messages.$inferSelect;
 // Verification code model - for storing verification codes
 export const verificationCodes = pgTable("verification_codes", {
   id: serial("id").primaryKey(),
-  phoneNumber: text("phone_number").notNull().unique(),
+  email: text("email").notNull().unique(),
   code: text("code").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").defaultNow()
 });
 
 export const insertVerificationCodeSchema = createInsertSchema(verificationCodes).pick({
-  phoneNumber: true,
+  email: true,
   code: true,
   expiresAt: true
 });

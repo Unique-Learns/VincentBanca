@@ -5,10 +5,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
 const VerificationForm = () => {
-  const { phoneNumber, verifyCode, setVerificationStep, requestVerificationCode } = useAuth();
+  const { email, verifyCode, setVerificationStep, requestVerificationCode } = useAuth();
   const [code, setCode] = useState(["", "", "", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [error, setError] = useState("");
   const inputRefs = [
     useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
@@ -48,16 +49,18 @@ const VerificationForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     const verificationCode = code.join("");
     
     if (verificationCode.length !== 6) {
+      setError("Please enter the full 6-digit code");
       return;
     }
     
     setIsLoading(true);
     
     try {
-      const result = await verifyCode(phoneNumber, verificationCode);
+      const result = await verifyCode(email, verificationCode);
       
       if (result.success) {
         if (result.isNewUser) {
@@ -67,6 +70,7 @@ const VerificationForm = () => {
       }
     } catch (error) {
       console.error("Error verifying code:", error);
+      setError("Invalid verification code. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -74,10 +78,12 @@ const VerificationForm = () => {
 
   const handleResend = async () => {
     setIsResending(true);
+    setError("");
     try {
-      await requestVerificationCode(phoneNumber);
+      await requestVerificationCode(email);
     } catch (error) {
       console.error("Error resending code:", error);
+      setError("Failed to resend verification code. Please try again.");
     } finally {
       setIsResending(false);
     }
@@ -88,11 +94,17 @@ const VerificationForm = () => {
     inputRefs[0].current?.focus();
   }, []);
 
-  // Format phone number for display
-  const formatPhoneNumber = (phone: string) => {
-    const countryCode = phone.substring(0, phone.length - 10);
-    const number = phone.substring(phone.length - 10);
-    return `${countryCode} ${number}`;
+  // Mask email for security (show only first 3 chars and domain)
+  const maskEmail = (email: string) => {
+    const parts = email.split('@');
+    if (parts.length !== 2) return email;
+    
+    const name = parts[0];
+    const domain = parts[1];
+    
+    const maskedName = name.substring(0, 3) + '*'.repeat(Math.max(0, name.length - 3));
+    
+    return `${maskedName}@${domain}`;
   };
 
   return (
@@ -100,7 +112,7 @@ const VerificationForm = () => {
       <CardContent className="pt-6">
         <h2 className="text-xl font-semibold mb-4">Enter verification code</h2>
         <p className="text-muted-foreground text-sm mb-4">
-          We've sent a 6-digit code to <span className="font-medium">{formatPhoneNumber(phoneNumber)}</span>
+          We've sent a 6-digit code to <span className="font-medium">{maskEmail(email)}</span>
         </p>
         
         <form onSubmit={handleSubmit}>
@@ -120,6 +132,12 @@ const VerificationForm = () => {
               />
             ))}
           </div>
+          
+          {error && (
+            <p className="text-sm text-destructive mb-4">
+              {error}
+            </p>
+          )}
           
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? "Verifying..." : "Verify"}

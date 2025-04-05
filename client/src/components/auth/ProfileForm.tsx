@@ -5,26 +5,49 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 
 const ProfileForm = () => {
   const { createProfile } = useAuth();
   const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [avatar, setAvatar] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     
     if (!username.trim()) {
+      setError("Please enter your name");
+      return;
+    }
+    
+    if (!password) {
+      setError("Please enter a password");
+      return;
+    }
+    
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters long");
+      return;
+    }
+    
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
       return;
     }
     
     setIsLoading(true);
     
     try {
-      await createProfile(username);
+      await createProfile(username, password);
     } catch (error) {
       console.error("Error creating profile:", error);
+      setError(error instanceof Error ? error.message : "Failed to create profile");
     } finally {
       setIsLoading(false);
     }
@@ -42,6 +65,10 @@ const ProfileForm = () => {
   // This is a mock function since we're not handling actual file uploads in the MVP
   const handleAvatarClick = () => {
     alert("In a real app, this would open a file picker to select a profile photo");
+  };
+
+  const toggleShowPassword = () => {
+    setShowPassword(!showPassword);
   };
 
   return (
@@ -71,7 +98,7 @@ const ProfileForm = () => {
         </div>
         
         <form onSubmit={handleSubmit}>
-          <div className="mb-6">
+          <div className="mb-4">
             <Label htmlFor="username" className="text-muted-foreground text-sm">
               Your name
             </Label>
@@ -84,6 +111,54 @@ const ProfileForm = () => {
               className="w-full"
             />
           </div>
+          
+          <div className="mb-4">
+            <Label htmlFor="password" className="text-muted-foreground text-sm">
+              Create a password
+            </Label>
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                className="w-full pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-0 top-0 h-full"
+                onClick={toggleShowPassword}
+              >
+                {showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              At least 8 characters
+            </p>
+          </div>
+          
+          <div className="mb-6">
+            <Label htmlFor="confirm-password" className="text-muted-foreground text-sm">
+              Confirm password
+            </Label>
+            <Input
+              id="confirm-password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm your password"
+              className="w-full"
+            />
+          </div>
+          
+          {error && (
+            <div className="mb-4 text-sm text-destructive">
+              {error}
+            </div>
+          )}
           
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? "Creating Profile..." : "Finish Setup"}
