@@ -6,12 +6,15 @@ import { ChatProvider } from "./contexts/ChatContext";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 
+// Use StrictMode to catch issues early
+import { StrictMode } from "react";
+
 createRoot(document.getElementById("root")!).render(
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <ChatProvider>
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
         <App />
-      </ChatProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  </StrictMode>
 );

@@ -1,11 +1,20 @@
-import React, { useState } from "react";
+import React, { useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import PhoneForm from "@/components/auth/PhoneForm";
 import VerificationForm from "@/components/auth/VerificationForm";
 import ProfileForm from "@/components/auth/ProfileForm";
+import { useLocation } from "wouter";
 
 const Authentication = () => {
-  const { verificationStep } = useAuth();
+  const { verificationStep, isAuthenticated } = useAuth();
+  const [_, setLocation] = useLocation();
+  
+  // Redirect to app if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      setLocation("/app");
+    }
+  }, [isAuthenticated, setLocation]);
 
   return (
     <div className="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center px-4">

@@ -31,7 +31,7 @@ interface ChatContextType {
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentUser, isAuthenticated } = useAuth();
+  const { isAuthenticated, currentUser } = useAuth();
   const { toast } = useToast();
   const { socket, isConnected, sendMessage: sendWsMessage } = useWebSocket();
   
