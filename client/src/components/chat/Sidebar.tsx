@@ -42,15 +42,15 @@ const Sidebar = () => {
   };
 
   const handleSyncContacts = () => {
-    // Mock sync with some hardcoded phone numbers for demo
-    const mockPhoneNumbers = [
-      "+14155552671", 
-      "+14155552672", 
-      "+14155552673", 
-      "+14155552674"
+    // Mock sync with some hardcoded email addresses for demo
+    const mockEmails = [
+      "user1@example.com", 
+      "user2@example.com", 
+      "user3@example.com", 
+      "user4@example.com"
     ];
     
-    syncContacts(mockPhoneNumbers);
+    syncContacts(mockEmails);
     toast({
       title: "Syncing contacts",
       description: "Looking for contacts using BancaMessenger..."
