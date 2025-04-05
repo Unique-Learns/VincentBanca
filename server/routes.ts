@@ -149,12 +149,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // API Routes
   
   // Authentication routes
-  app.post('/api/auth/request-code', async (req: Request, res: Response) => {
+  app.post('/api/auth/login', async (req: Request, res: Response) => {
     try {
-      const { email } = req.body;
+      const { email, password } = req.body;
       
-      if (!email) {
-        return res.status(400).json({ message: 'Email is required' });
+      if (!email || !password) {
+        return res.status(400).json({ message: 'Email and password are required' });
       }
       
       // Validate email format
@@ -163,87 +163,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invalid email format' });
       }
       
-      // Generate a 6-digit verification code
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      // Set expiration time to 10 minutes from now
-      const expiresAt = new Date();
-      expiresAt.setMinutes(expiresAt.getMinutes() + 10);
-      
-      // Store the verification code
-      await storage.createVerificationCode({
-        email,
-        code,
-        expiresAt
-      });
-      
-      // In a real app, you would send an email with the code
-      // For this MVP, we'll just return the code in the response
-      return res.status(200).json({ 
-        message: 'Verification code sent', 
-        code // Only for demo purposes
-      });
-    } catch (error) {
-      console.error('Request code error:', error);
-      return res.status(500).json({ message: 'Failed to send verification code' });
-    }
-  });
-  
-  app.post('/api/auth/verify-code', async (req: Request, res: Response) => {
-    try {
-      const { email, code } = req.body;
-      
-      if (!email || !code) {
-        return res.status(400).json({ message: 'Email and code are required' });
-      }
-      
-      // Get the stored verification code
-      const storedCode = await storage.getVerificationCode(email);
-      
-      if (!storedCode) {
-        return res.status(400).json({ message: 'No verification code found for this email' });
-      }
-      
-      // Check if the code has expired
-      if (new Date() > storedCode.expiresAt) {
-        await storage.deleteVerificationCode(email);
-        return res.status(400).json({ message: 'Verification code has expired' });
-      }
-      
-      // Check if the code matches
-      if (storedCode.code !== code) {
-        return res.status(400).json({ message: 'Invalid verification code' });
-      }
-      
       // Check if user exists
-      let user = await storage.getUserByEmail(email);
+      const user = await storage.getUserByEmail(email);
       
       if (!user) {
-        // User doesn't exist yet, but verification is successful
-        return res.status(200).json({ 
-          message: 'Verification successful', 
-          isNewUser: true
-        });
+        return res.status(401).json({ message: 'Invalid email or password' });
       }
       
-      // Existing user, mark as verified
-      user = await storage.updateUser(user.id, { verified: true });
-      
-      // Delete the verification code
-      await storage.deleteVerificationCode(email);
+      // In a real app, we would use bcrypt to compare passwords
+      // For this MVP, we're doing a simple comparison
+      if (user.password !== password) {
+        return res.status(401).json({ message: 'Invalid email or password' });
+      }
       
       return res.status(200).json({ 
-        message: 'Verification successful', 
-        isNewUser: false, 
+        message: 'Login successful', 
         user 
       });
     } catch (error) {
-      console.error('Verify code error:', error);
-      return res.status(500).json({ message: 'Failed to verify code' });
+      console.error('Login error:', error);
+      return res.status(500).json({ message: 'Failed to login' });
     }
   });
   
-  app.post('/api/auth/complete-profile', async (req: Request, res: Response) => {
+  app.post('/api/auth/register', async (req: Request, res: Response) => {
     try {
       const userInsertSchema = insertUserSchema.extend({
         email: z.string().email("Valid email is required"),
@@ -266,10 +209,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         verified: true
       });
       
-      return res.status(201).json({ message: 'Profile created successfully', user });
+      return res.status(201).json({ message: 'Registration successful', user });
     } catch (error) {
-      console.error('Complete profile error:', error);
-      return res.status(500).json({ message: 'Failed to create profile' });
+      console.error('Register error:', error);
+      
+      // Handle validation errors
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: 'Validation error', 
+          errors: error.errors 
+        });
+      }
+      
+      return res.status(500).json({ message: 'Failed to register' });
     }
   });
   

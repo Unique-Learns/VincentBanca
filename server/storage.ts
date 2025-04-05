@@ -5,6 +5,8 @@ import {
   messages, type Message, type InsertMessage,
   verificationCodes, type VerificationCode, type InsertVerificationCode
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, and, or } from "drizzle-orm";
 
 export interface IStorage {
   // User operations
@@ -255,4 +257,152 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  // User operations
+  async getUserById(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+  
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+  
+  async createUser(user: InsertUser): Promise<User> {
+    const [newUser] = await db.insert(users).values(user).returning();
+    return newUser;
+  }
+  
+  async updateUser(id: number, userData: Partial<InsertUser>): Promise<User | undefined> {
+    const [updatedUser] = await db
+      .update(users)
+      .set(userData)
+      .where(eq(users.id, id))
+      .returning();
+    
+    return updatedUser;
+  }
+  
+  // Verification operations
+  async getVerificationCode(email: string): Promise<VerificationCode | undefined> {
+    const [code] = await db.select().from(verificationCodes).where(eq(verificationCodes.email, email));
+    return code;
+  }
+  
+  async createVerificationCode(code: InsertVerificationCode): Promise<VerificationCode> {
+    // Delete any existing code for this email
+    await db.delete(verificationCodes).where(eq(verificationCodes.email, code.email));
+    
+    // Create new code
+    const [newCode] = await db.insert(verificationCodes).values(code).returning();
+    return newCode;
+  }
+  
+  async deleteVerificationCode(email: string): Promise<boolean> {
+    const result = await db.delete(verificationCodes).where(eq(verificationCodes.email, email));
+    return result.count > 0;
+  }
+  
+  // Contact operations
+  async getContactsByUserId(userId: number): Promise<Contact[]> {
+    return db.select().from(contacts).where(eq(contacts.userId, userId));
+  }
+  
+  async createContact(contact: InsertContact): Promise<Contact> {
+    const [newContact] = await db.insert(contacts).values(contact).returning();
+    return newContact;
+  }
+  
+  async deleteContact(userId: number, contactId: number): Promise<boolean> {
+    const result = await db
+      .delete(contacts)
+      .where(and(eq(contacts.userId, userId), eq(contacts.contactId, contactId)));
+    
+    return result.count > 0;
+  }
+  
+  // Conversation operations
+  async getConversationById(id: number): Promise<Conversation | undefined> {
+    const [conversation] = await db.select().from(conversations).where(eq(conversations.id, id));
+    return conversation;
+  }
+  
+  async getConversationByParticipants(userA: number, userB: number): Promise<Conversation | undefined> {
+    const [conversation] = await db
+      .select()
+      .from(conversations)
+      .where(
+        or(
+          and(
+            eq(conversations.participantA, userA),
+            eq(conversations.participantB, userB)
+          ),
+          and(
+            eq(conversations.participantA, userB),
+            eq(conversations.participantB, userA)
+          )
+        )
+      );
+    
+    return conversation;
+  }
+  
+  async getConversationsByUserId(userId: number): Promise<Conversation[]> {
+    return db
+      .select()
+      .from(conversations)
+      .where(
+        or(
+          eq(conversations.participantA, userId),
+          eq(conversations.participantB, userId)
+        )
+      );
+  }
+  
+  async createConversation(conversation: InsertConversation): Promise<Conversation> {
+    const [newConversation] = await db.insert(conversations).values(conversation).returning();
+    return newConversation;
+  }
+  
+  async updateConversationLastMessageTime(id: number, time: Date | null): Promise<Conversation | undefined> {
+    const [updatedConversation] = await db
+      .update(conversations)
+      .set({ lastMessageTime: time || new Date() })
+      .where(eq(conversations.id, id))
+      .returning();
+    
+    return updatedConversation;
+  }
+  
+  // Message operations
+  async getMessagesByConversationId(conversationId: number): Promise<Message[]> {
+    return db
+      .select()
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(messages.timestamp);
+  }
+  
+  async createMessage(message: InsertMessage): Promise<Message> {
+    const [newMessage] = await db.insert(messages).values(message).returning();
+    
+    // Update conversation's lastMessageTime
+    await this.updateConversationLastMessageTime(message.conversationId, newMessage.timestamp);
+    
+    return newMessage;
+  }
+  
+  async updateMessageStatus(id: number, status: string): Promise<Message | undefined> {
+    const [updatedMessage] = await db
+      .update(messages)
+      .set({ status })
+      .where(eq(messages.id, id))
+      .returning();
+    
+    return updatedMessage;
+  }
+}
+
+// Switch to database storage
+export const storage = new DatabaseStorage();

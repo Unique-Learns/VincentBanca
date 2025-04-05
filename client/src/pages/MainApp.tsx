@@ -66,7 +66,7 @@ const MainApp = () => {
   // Redirect to auth if not authenticated
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate("/");
+      navigate("/auth");
     }
   }, [isAuthenticated, navigate]);
   

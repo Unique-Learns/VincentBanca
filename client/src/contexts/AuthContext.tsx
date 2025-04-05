@@ -5,17 +5,9 @@ import { useToast } from "@/hooks/use-toast";
 interface AuthContextType {
   isAuthenticated: boolean;
   currentUser: User | null;
-  verificationStep: "email" | "verify" | "profile";
-  email: string;
-  verificationCode: string;
-  login: (user: User) => void;
+  login: (email: string, password: string) => Promise<User>;
+  register: (email: string, username: string, password: string) => Promise<User>;
   logout: () => void;
-  setEmail: (email: string) => void;
-  setVerificationCode: (code: string) => void;
-  setVerificationStep: (step: "email" | "verify" | "profile") => void;
-  requestVerificationCode: (email: string) => Promise<string>;
-  verifyCode: (email: string, code: string) => Promise<{success: boolean, isNewUser: boolean, user?: User}>;
-  createProfile: (username: string, password: string) => Promise<User>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,9 +15,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [verificationStep, setVerificationStep] = useState<"email" | "verify" | "profile">("email");
-  const [email, setEmail] = useState<string>("");
-  const [verificationCode, setVerificationCode] = useState<string>("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -43,127 +32,97 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const login = (user: User) => {
+  const setLoggedInUser = (user: User) => {
     setCurrentUser(user);
     setIsAuthenticated(true);
     localStorage.setItem("banca_user", JSON.stringify(user));
   };
 
-  const logout = () => {
-    setCurrentUser(null);
-    setIsAuthenticated(false);
-    localStorage.removeItem("banca_user");
-  };
-
-  const requestVerificationCode = async (email: string): Promise<string> => {
+  const login = async (email: string, password: string): Promise<User> => {
     try {
-      const response = await fetch("/api/auth/request-code", {
+      const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Failed to request verification code");
+        throw new Error(data.message || "Failed to login");
       }
 
       toast({
-        title: "Verification code sent",
-        description: "Please check your email for the code",
+        title: "Login successful",
+        description: `Welcome back, ${data.user.username}!`,
       });
 
-      return data.code; // In a real app, this would be sent via email
+      setLoggedInUser(data.user);
+      return data.user;
     } catch (error) {
-      console.error("Error requesting verification code:", error);
+      console.error("Error logging in:", error);
       toast({
         variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to request verification code",
+        title: "Login failed",
+        description: error instanceof Error ? error.message : "Failed to login",
       });
       throw error;
     }
   };
 
-  const verifyCode = async (email: string, code: string) => {
+  const register = async (email: string, username: string, password: string): Promise<User> => {
     try {
-      const response = await fetch("/api/auth/verify-code", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, code }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to verify code");
-      }
-
-      toast({
-        title: "Verification successful",
-      });
-
-      if (!data.isNewUser) {
-        login(data.user);
-      }
-
-      return {
-        success: true,
-        isNewUser: data.isNewUser,
-        user: data.user,
-      };
-    } catch (error) {
-      console.error("Error verifying code:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to verify code",
-      });
-      throw error;
-    }
-  };
-
-  const createProfile = async (username: string, password: string): Promise<User> => {
-    try {
-      const response = await fetch("/api/auth/complete-profile", {
+      const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           email,
-          password,
           username,
+          password,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Failed to create profile");
+        if (data.errors) {
+          // Handle validation errors
+          const errorMessage = data.errors.map((err: any) => err.message).join(', ');
+          throw new Error(errorMessage);
+        }
+        throw new Error(data.message || "Failed to register");
       }
 
       toast({
         title: "Welcome to BancaMessenger!",
-        description: "Your profile has been created successfully",
+        description: "Your account has been created successfully",
       });
 
-      login(data.user);
+      setLoggedInUser(data.user);
       return data.user;
     } catch (error) {
-      console.error("Error creating profile:", error);
+      console.error("Error registering:", error);
       toast({
         variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create profile",
+        title: "Registration failed",
+        description: error instanceof Error ? error.message : "Failed to register",
       });
       throw error;
     }
+  };
+
+  const logout = () => {
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+    localStorage.removeItem("banca_user");
+    toast({
+      title: "Logged out",
+      description: "You have been successfully logged out",
+    });
   };
 
   return (
@@ -171,17 +130,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         isAuthenticated,
         currentUser,
-        verificationStep,
-        email,
-        verificationCode,
         login,
+        register,
         logout,
-        setEmail,
-        setVerificationCode,
-        setVerificationStep,
-        requestVerificationCode,
-        verifyCode,
-        createProfile,
       }}
     >
       {children}
